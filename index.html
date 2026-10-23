@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Poke Go — Доставка</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #111827; color: #f9fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding-bottom: 100px; }
+    .card { background-color: #1f2937; border-radius: 16px; overflow: hidden; border: 1px solid #374151; }
+    .btn-primary { background-color: #ef4444; color: white; font-weight: 600; border-radius: 12px; transition: 0.15s; }
+    .btn-primary:active { transform: scale(0.97); }
+    .chip { border: 1px solid #4b5563; border-radius: 20px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+    .chip.active { background-color: #ef4444; border-color: #ef4444; color: white; }
+  </style>
+</head>
+<body class="p-3">
+
+  <!-- Шапка -->
+  <div class="flex items-center justify-between mb-4 px-1">
+    <div>
+      <h1 class="text-xl font-bold text-white">🥢 Poke Go Nha Trang</h1>
+      <p class="text-xs text-gray-400">До двери в ЖК Наполеон и Океанус за 25 мин — 0₫</p>
+    </div>
+    <span class="bg-green-600/20 text-green-400 text-xs px-2.5 py-1 rounded-full border border-green-500/30">11:00–21:00</span>
+  </div>
+
+  <!-- Категории -->
+  <div class="flex gap-2 overflow-x-auto pb-3 mb-2 no-scrollbar" id="categories">
+    <button onclick="filterMenu('all')" class="chip active" id="cat-all">Все</button>
+    <button onclick="filterMenu('combo')" class="chip" id="cat-combo">🔥 Комбо</button>
+    <button onclick="filterMenu('poke')" class="chip" id="cat-poke">🥗 Поке (370 г)</button>
+    <button onclick="filterMenu('extra')" class="chip" id="cat-extra">🥒 Допы и Десерты</button>
+  </div>
+
+  <!-- Сетка меню -->
+  <div id="menu-container" class="grid grid-cols-1 gap-3"></div>
+
+  <!-- Плавающая кнопка Корзины -->
+  <div id="cart-bar" class="fixed bottom-0 left-0 right-0 p-3 bg-gray-900/95 border-t border-gray-800 hidden z-40">
+    <button onclick="openCheckout()" class="w-full btn-primary py-3.5 px-4 flex justify-between items-center shadow-lg">
+      <span id="cart-count" class="bg-black/30 px-2.5 py-0.5 rounded-lg text-sm">0</span>
+      <span class="text-base">Оформить заказ</span>
+      <span id="cart-total" class="text-sm font-bold">0k VND</span>
+    </button>
+  </div>
+
+  <!-- Модальное окно оформления заказа -->
+  <div id="checkout-modal" class="fixed inset-0 bg-black/80 z-50 hidden overflow-y-auto p-3">
+    <div class="bg-gray-800 rounded-2xl p-4 max-w-md mx-auto my-4 border border-gray-700">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-lg font-bold">Оформление заказа</h2>
+        <button onclick="closeCheckout()" class="text-gray-400 text-2xl leading-none">&times;</button>
+      </div>
+
+      <!-- Состав корзины -->
+      <div id="checkout-items" class="space-y-2 mb-4 text-sm border-b border-gray-700 pb-3"></div>
+
+      <!-- Бесплатные кастомизации из логов Кухни -->
+      <div class="mb-4">
+        <label class="block text-xs text-gray-400 mb-2 uppercase font-semibold">Пожелания к сборке (бесплатно):</label>
+        <div class="flex flex-wrap gap-2">
+          <div onclick="toggleMod(this, 'Побольше соуса')" class="chip">🥣 Побольше соуса</div>
+          <div onclick="toggleMod(this, 'Острый соус чили')" class="chip">🌶 Острый чили</div>
+          <div onclick="toggleMod(this, 'БЕЗ огурцов')" class="chip">🚫 Без огурцов</div>
+          <div onclick="toggleMod(this, 'БЕЗ авокадо')" class="chip">🚫 Без авокадо</div>
+        </div>
+      </div>
+
+      <!-- Адрес -->
+      <div class="space-y-3 mb-4">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Ваш дом / Зона доставки *</label>
+          <select id="building" onchange="updateDeliveryNotice()" class="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-sm text-white">
+            <option value="ЖК Наполеон">ЖК Наполеон (до двери — бесплатно)</option>
+            <option value="Океанус OC1A">Океанус — корпус OC1A (бесплатно)</option>
+            <option value="Океанус OC1B">Океанус — корпус OC1B (бесплатно)</option>
+            <option value="Океанус OC2A">Океанус — корпус OC2A (бесплатно)</option>
+            <option value="Океанус OC2B">Океанус — корпус OC2B (бесплатно)</option>
+            <option value="Океанус OC3">Океанус — корпус OC3 (бесплатно)</option>
+            <option value="Доставка по городу (Grab)">Другой адрес в Нячанге (по тарифу Grab)</option>
+            <option value="Самовывоз (ЖК Наполеон)">Самовывоз (ЖК Наполеон)</option>
+          </select>
+        </div>
+
+        <div id="grab-notice" class="hidden bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 text-xs p-2.5 rounded-xl">
+          🛵 Доставка по городу рассчитывается по тарифу Grab. Оплата возможна по QR-коду или наличными напрямую водителю Grab при получении.
+        </div>
+
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Этаж и квартира (или точный адрес для Grab) *</label>
+          <input type="text" id="address-detail" placeholder="Например: 25 этаж, кв. 14" class="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-sm text-white">
+        </div>
+
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Способ оплаты *</label>
+          <select id="payment" class="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-sm text-white">
+            <option value="Вьетнамский QR-код">📲 Вьетнамский QR-код (пришлём в чат)</option>
+            <option value="Наличными курьеру (VND)">💵 Наличными при получении (VND)</option>
+            <option value="Перевод в рублях (СБП)">💳 Перевод в рублях на карту РФ</option>
+          </select>
+        </div>
+
+        <div class="flex gap-2">
+          <input type="text" id="promocode" placeholder="Промокод (например, СОСЕД)" class="flex-1 bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-sm text-white uppercase">
+          <button onclick="applyPromo()" class="bg-gray-700 px-4 rounded-xl text-sm font-medium">Применить</button>
+        </div>
+        <p id="promo-msg" class="text-xs text-green-400 hidden"></p>
+
+        <div>
+          <input type="text" id="comment" placeholder="Комментарий (ко скольки привезти и т.д.)" class="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-sm text-white">
+        </div>
+      </div>
+
+      <button id="submit-btn" onclick="submitOrder()" class="w-full btn-primary py-3.5 text-base shadow-lg">
+        Подтвердить заказ
+      </button>
+    </div>
+  </div>
+
+<script>
+  const tg = window.Telegram.WebApp;
+  tg.expand();
+
+  // ВСТАВЬ СЮДА URL СВОЕГО GOOGLE APPS SCRIPT WEBHOOK ИЗ ШАГА 3:
+  const WEBHOOK_URL = "ВСТАВЬ_СЮДА_URL_ИЗ_ШАГА_3";
+
+  // Меню Poke Go (фотографии можно заменить на прямые ссылки на ваши фото)
+  const MENU = [
+    { id: 'c1', cat: 'combo', name: '🔥 Комбо «Сытный» (Курица)', desc: 'Поке с курицей + Битые огурцы + Чиа-пудинг (выгода 45k)', price: 155, img: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80' },
+    { id: 'c2', cat: 'combo', name: '🔥 Комбо «Морской» (Креветка)', desc: 'Поке с креветкой + Битые огурцы + Чиа-пудинг (выгода 50k)', price: 170, img: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80' },
+    { id: 'c3', cat: 'combo', name: '🔥 Комбо «Морской» (Тунец)', desc: 'Поке с тунцом + Битые огурцы + Чиа-пудинг (выгода 50k)', price: 170, img: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=80' },
+    { id: 'c4', cat: 'combo', name: '🔥 Комбо «Премиум» (Лосось)', desc: 'Поке с лососем + Битые огурцы + Чиа-пудинг (выгода 45k)', price: 185, img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80' },
+    { id: 'p1', cat: 'poke', name: '🍗 Поке с курицей', desc: '370 г | 540 ккал (Б:32 Ж:14 У:72) • Рис, курица, манго, авокадо, ананас, чука, эдамаме, огурец, черри', price: 100, img: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80' },
+    { id: 'p2', cat: 'poke', name: '🦐 Поке с креветкой', desc: '370 г | 470 ккал (Б:25 Ж:12 У:65) • Тигровые креветки, манго, авокадо, чука, эдамаме, соус кунжутный', price: 120, img: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80' },
+    { id: 'p3', cat: 'poke', name: '🐟 Поке с тунцом Saku', desc: '370 г | 500 ккал (Б:23 Ж:15 У:68) • Филе тунца, манго, авокадо, чука, эдамаме, ананас, соус', price: 120, img: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=80' },
+    { id: 'p4', cat: 'poke', name: '🍣 Поке с лососем', desc: '370 г | 501 ккал (Б:19 Ж:19 У:65) • Чилийский лосось, манго, авокадо, чука, эдамаме, соус', price: 130, img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80' },
+    { id: 'e1', cat: 'extra', name: '🥒 Битые огурцы', desc: 'Хрустящие огурцы в кунжутно-чесночном маринаде', price: 40, img: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&q=80' },
+    { id: 'e2', cat: 'extra', name: '🥥 Чиа-пудинг', desc: 'На кокосовом молоке с фруктовым топпингом', price: 60, img: 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=600&q=80' },
+    { id: 'e3', cat: 'extra', name: '➕ Двойная порция рыбы/креветки', desc: 'Дополнительные +45-50 г морепродуктов в ваш боул', price: 35, img: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=600&q=80' }
+  ];
+
+  let cart = {};
+  let selectedMods = [];
+  let appliedPromo = "";
+  let currentCat = 'all';
+
+  function renderMenu() {
+    const container = document.getElementById('menu-container');
+    container.innerHTML = '';
+    MENU.filter(i => currentCat === 'all' || i.cat === currentCat).forEach(item => {
+      const qty = cart[item.id] || 0;
+      container.innerHTML += `
+        <div class="card flex p-2.5 gap-3 items-center">
+          <img src="${item.img}" class="w-24 h-24 object-cover rounded-xl flex-shrink-0" alt="${item.name}">
+          <div class="flex-1">
+            <h3 class="font-bold text-sm text-white leading-snug">${item.name}</h3>
+            <p class="text-xs text-gray-400 mt-1 line-clamp-2">${item.desc}</p>
+            <div class="flex justify-between items-center mt-2.5">
+              <span class="font-bold text-sm text-red-400">${item.price}.000 VND</span>
+              ${qty === 0 ? `
+                <button onclick="changeQty('${item.id}', 1)" class="btn-primary px-3.5 py-1.5 text-xs">Добавить</button>
+              ` : `
+                <div class="flex items-center gap-2.5 bg-gray-800 rounded-xl px-2 py-1 border border-gray-600">
+                  <button onclick="changeQty('${item.id}', -1)" class="text-lg font-bold px-1.5 text-red-400">−</button>
+                  <span class="text-sm font-bold">${qty}</span>
+                  <button onclick="changeQty('${item.id}', 1)" class="text-lg font-bold px-1.5 text-green-400">+</button>
+                </div>
+              `}
+            </div>
+          </div>
+        </div>`;
+    });
+    updateCartBar();
+  }
+
+  function filterMenu(cat) {
+    currentCat = cat;
+    document.querySelectorAll('#categories .chip').forEach(c => c.classList.remove('active'));
+    document.getElementById('cat-' + cat).classList.add('active');
+    renderMenu();
+  }
+
+  function changeQty(id, delta) {
+    cart[id] = (cart[id] || 0) + delta;
+    if (cart[id] <= 0) delete cart[id];
+    renderMenu();
+  }
+
+  function getTotals() {
+    let count = 0, total = 0;
+    for (let id in cart) {
+      const item = MENU.find(i => i.id === id);
+      count += cart[id];
+      total += item.price * cart[id];
+    }
+    return { count, total };
+  }
+
+  function updateCartBar() {
+    const { count, total } = getTotals();
+    const bar = document.getElementById('cart-bar');
+    if (count > 0) {
+      bar.classList.remove('hidden');
+      document.getElementById('cart-count').innerText = count + ' шт.';
+      document.getElementById('cart-total').innerText = total + '.000 VND';
+    } else {
+      bar.classList.add('hidden');
+    }
+  }
+
+  function toggleMod(el, modName) {
+    el.classList.toggle('active');
+    if (selectedMods.includes(modName)) {
+      selectedMods = selectedMods.filter(m => m !== modName);
+    } else {
+      selectedMods.push(modName);
+    }
+  }
+
+  function updateDeliveryNotice() {
+    const b = document.getElementById('building').value;
+    document.getElementById('grab-notice').classList.toggle('hidden', !b.includes('Grab'));
+  }
+
+  function applyPromo() {
+    const code = document.getElementById('promocode').value.trim().toUpperCase();
+    const msg = document.getElementById('promo-msg');
+    if (code === 'СОСЕД' || code === 'СЕВЕР') {
+      appliedPromo = code + " (+ 🎁 Битые огурцы бесплатно)";
+      msg.innerText = "🎁 Промокод активирован: порция битых огурцов в подарок!";
+      msg.classList.remove('hidden');
+    } else {
+      appliedPromo = code;
+      msg.innerText = "Промокод прикреплён к заказу";
+      msg.classList.remove('hidden');
+    }
+  }
+
+  function openCheckout() {
+    const list = document.getElementById('checkout-items');
+    list.innerHTML = '';
+    for (let id in cart) {
+      const item = MENU.find(i => i.id === id);
+      list.innerHTML += `<div class="flex justify-between"><span>${item.name} × ${cart[id]}</span><span class="font-semibold">${item.price * cart[id]}.000 VND</span></div>`;
+    }
+    const { total } = getTotals();
+    list.innerHTML += `<div class="flex justify-between text-base font-bold pt-2 text-red-400"><span>Итого:</span><span>${total}.000 VND</span></div>`;
+    document.getElementById('checkout-modal').classList.remove('hidden');
+  }
+
+  function closeCheckout() {
+    document.getElementById('checkout-modal').classList.add('hidden');
+  }
+
+  async function submitOrder() {
+    const addressDetail = document.getElementById('address-detail').value.trim();
+    if (!addressDetail) {
+      alert("Пожалуйста, укажите этаж и номер квартиры (или адрес)!");
+      return;
+    }
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.innerText = "Отправляем на кухню...";
+
+    const itemsList = Object.keys(cart).map(id => {
+      const item = MENU.find(i => i.id === id);
+      return `• ${item.name} × ${cart[id]} (${item.price * cart[id]}.000 VND)`;
+    }).join('\n');
+
+    const { total } = getTotals();
+    const user = tg.initDataUnsafe?.user || { id: 0, first_name: "Гость", username: "" };
+
+    const payload = {
+      action: "new_order",
+      user_id: user.id,
+      first_name: user.first_name || "",
+      username: user.username || "",
+      items_text: itemsList,
+      total: total + ".000 VND",
+      building: document.getElementById('building').value,
+      address: addressDetail,
+      payment: document.getElementById('payment').value,
+      mods: selectedMods.join(', ') || 'Стандарт',
+      promo: appliedPromo || 'Нет',
+      comment: document.getElementById('comment').value.trim() || 'Нет'
+    };
+
+    try {
+      await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      tg.close();
+    } catch (e) {
+      alert("Ошибка отправки. Напишите в чат боту!");
+      btn.disabled = false;
+      btn.innerText = "Подтвердить заказ";
+    }
+  }
+
+  renderMenu();
+</script>
+</body>
+</html>
